@@ -19,16 +19,11 @@ spec:
     spec:
       containers:
         - name: session-db
-          image: registry.redhat.io/rhel9/redis-7:1-29.1726663415
+          image: redis:7-alpine
           imagePullPolicy: IfNotPresent
           ports:
             - name: redis
               containerPort: 6379
-          securityContext:
-            capabilities:
-              drop:
-                - all
-            readOnlyRootFilesystem: true
           volumeMounts:
             - mountPath: /data
               name: sesion-db-vol

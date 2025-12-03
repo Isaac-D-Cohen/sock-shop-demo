@@ -17,6 +17,7 @@ resources:
   - 04-carts-db-svc.yaml
   - 05-catalogue-dep.yaml
   - 06-catalogue-svc.yaml
+  - 07-catalogue-db-temp-pvc.yaml
   - 07-catalogue-db-dep.yaml
   - 08-catalogue-db-svc.yaml
   - 09-front-end-dep.yaml
@@ -41,7 +42,7 @@ resources:
   - 27-user-db-temp-pvc.yaml
   - 27-user-db-dep.yaml
   - 28-user-db-svc.yaml
-  - 29-route-front-end.yaml
+
 secretGenerator:
   - name: mongodb-creds
     envs:

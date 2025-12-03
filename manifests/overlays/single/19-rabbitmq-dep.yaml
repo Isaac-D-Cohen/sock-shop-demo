@@ -28,8 +28,6 @@ spec:
               name: management
             - containerPort: 5672
               name: rabbitmq
-          securityContext:
-            readOnlyRootFilesystem: false
         - name: rabbitmq-exporter
           image: ghcr.io/kbudde/rabbitmq_exporter:1.0.0
           imagePullPolicy: IfNotPresent

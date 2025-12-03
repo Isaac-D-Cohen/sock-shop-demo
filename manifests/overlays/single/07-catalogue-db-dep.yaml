@@ -17,35 +17,23 @@ spec:
     spec:
       containers:
         - name: catalogue-db
-          image: quay.io/powercloud/sock-shop-catalogue-db:latest
+          image: quay.io/powercloud/sock-shop-catalogue-db:amd64
           imagePullPolicy: IfNotPresent
           env:
-            - name: MARIADB_ROOT_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mongodb-creds
-                  key: password
-            - name: MARIADB_USER
-              value: root
-            - name: MARIADB_DATABASE
-              value: socksdb
+            - name: MYSQL_ALLOW_EMPTY_PASSWORD
+              value: "true"
+            - name: MYSQL_DATABASE
+              value: "socksdb"
           ports:
             - name: mysql
               containerPort: 3306
           volumeMounts:
             - mountPath: /var/lib/mysql
-              name: catalogue-data
-          securityContext:
-            privileged: false
-            seccompProfile:
-              type: RuntimeDefault
-            capabilities:
-              drop:
-                - ALL
+              name: catalogue-db-storage
       volumes:
-        - name: catalogue-data
-          emptyDir:
-            medium: Memory
+        - name: catalogue-db-storage
+          persistentVolumeClaim:
+            claimName: catalogue-db-temp-pvc
       nodeSelector:
         kubernetes.io/arch: amd64
         node-role.kubernetes.io/worker: ""

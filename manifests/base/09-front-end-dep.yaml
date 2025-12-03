@@ -32,12 +32,6 @@ spec:
           env:
             - name: SESSION_REDIS
               value: "true"
-          securityContext:
-            runAsNonRoot: true
-            capabilities:
-              drop:
-                - all
-            readOnlyRootFilesystem: true
           livenessProbe:
             httpGet:
               path: /

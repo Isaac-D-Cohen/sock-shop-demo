@@ -1,0 +1,27 @@
+# kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+      - containerPort: 443
+        hostPort: 443
+      - containerPort: 30001
+        hostPort: 30001
+        protocol: TCP
+    extraMounts:
+      - hostPath: /data/kind/pv-controller
+        containerPath: /opt/local-path-provisioner
+
+  - role: worker
+    extraMounts:
+      - hostPath: /data/kind/pv-node1
+        containerPath: /opt/local-path-provisioner
+
+  - role: worker
+    extraMounts:
+      - hostPath: /data/kind/pv-node2
+        containerPath: /opt/local-path-provisioner

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nfs-server
+spec:
+  containers:
+  - name: nfs-server
+    image: itsthenetwork/nfs-server-alpine
+    volumeMounts:
+    - name: nfs-data
+      mountPath: /export
+  volumes:
+  - name: nfs-data
+    hostPath:
+      path: /data/kind/nfs
+      type: DirectoryOrCreate

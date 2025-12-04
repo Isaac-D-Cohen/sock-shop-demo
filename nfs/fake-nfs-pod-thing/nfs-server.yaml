@@ -6,9 +6,12 @@ spec:
   containers:
   - name: nfs-server
     image: itsthenetwork/nfs-server-alpine
+    env:
+      - name: SHARED_DIRECTORY
+        value: /export
     volumeMounts:
-    - name: nfs-data
-      mountPath: /export
+      - name: nfs-data
+        mountPath: /export
   volumes:
   - name: nfs-data
     hostPath:

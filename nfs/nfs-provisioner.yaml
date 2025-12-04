@@ -26,14 +26,14 @@ spec:
             - name: nfs-client-root
               mountPath: /persistentvolumes
           env:
-            - name: NFS_PROVISIONER
-              value: k8s-sigs.io/nfs-subdir-external-provisioner
+            - name: PROVISIONER_NAME
+              value: cluster.local/nfs-subdir-external-provisioner
             - name: NFS_SERVER
-              value: 10.3.243.101
+              value: 10.128.0.2
             - name: NFS_PATH
-              value: /ifs/kubernetes
+              value: /data/nfs
       volumes:
         - name: nfs-client-root
           nfs:
-            server: 10.3.243.101
-            path: /ifs/kubernetes
+            server: 10.128.0.2
+            path: /data/nfs

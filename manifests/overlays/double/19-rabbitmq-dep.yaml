@@ -1,0 +1,39 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  labels:
+    name: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: rabbitmq
+  template:
+    metadata:
+      labels:
+        name: rabbitmq
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      containers:
+        - name: rabbitmq
+          image: quay.io/powercloud/rabbitmq:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/bin/bash"]
+          args: ["/usr/local/bin/docker-entrypoint.sh", "rabbitmq-server"]
+          ports:
+            - containerPort: 15672
+              name: management
+            - containerPort: 5672
+              name: rabbitmq
+        - name: rabbitmq-exporter
+          image: ghcr.io/kbudde/rabbitmq_exporter:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9090
+              name: exporter
+      nodeSelector:
+        node-role.kubernetes.io/worker: ""
+        kubernetes.io/arch: amd64

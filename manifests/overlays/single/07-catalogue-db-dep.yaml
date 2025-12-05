@@ -33,7 +33,7 @@ spec:
       volumes:
         - name: catalogue-db-storage
           persistentVolumeClaim:
-            claimName: catalogue-db-temp-pvc
+            claimName: catalogue-db-pvc
       nodeSelector:
         kubernetes.io/arch: amd64
         node-role.kubernetes.io/worker: ""

@@ -22,7 +22,7 @@ spec:
           command: [ "/opt/app" ]
           args:
             - -port=8080
-            - -DSN=root:admin@tcp(catalogue-db:3306)/socksdb
+            - -DSN=root@tcp(catalogue-db:3306)/socksdb
           resources:
             limits:
               cpu: 200m

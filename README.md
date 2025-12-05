@@ -1,160 +1,126 @@
-## Sock Shop : A Microservice Demo Application
+# kube-prometheus
 
-The application is the user-facing part of an online shop that sells socks. It is intended to aid the demonstration and testing of microservice and cloud native technologies.
+[![Build Status](https://github.com/prometheus-operator/kube-prometheus/workflows/ci/badge.svg)](https://github.com/prometheus-operator/kube-prometheus/actions)
+[![Slack](https://img.shields.io/badge/join%20slack-%23prometheus--operator-brightgreen.svg)](http://slack.k8s.io/)
 
-It is built using [Spring Boot](http://projects.spring.io/spring-boot/), [Go kit](http://gokit.io) and [Node.js](https://nodejs.org/) and is packaged in Docker containers.
+> [!WARNING]
+> Everything is experimental and may change significantly at any time.
 
-This repository is a multiarchitecture compute version of the microservices demonstration.
+This repository collects Kubernetes manifests, [Grafana](http://grafana.com/) dashboards, and [Prometheus rules](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/) combined with documentation and scripts to provide easy to operate end-to-end Kubernetes cluster monitoring with [Prometheus](https://prometheus.io/) using the Prometheus Operator.
 
-### Purpose
+The content of this project is written in [jsonnet](http://jsonnet.org/). This project could both be described as a package as well as a library.
 
-The purpose of this application is to use a reference microservices demo to show a real-life multiarchitecture compute.
+Components included in this package:
 
-### Applications
-1. [front-end](https://github.com/microservices-demo/front-end)
-2. [orders](https://github.com/microservices-demo/orders)
-3. [payment](https://github.com/microservices-demo/payment)
-4. [user](https://github.com/microservices-demo/user)
-*user-db* is Intel only. The `power` overlay supports `ppc64le`.
-5. [catalogue](https://github.com/microservices-demo/catalogue) *catalogue-db* is Intel only. The `power` overlay supports `ppc64le`.
-6. [cart](https://github.com/microservices-demo/carts)
-7. [shipping](https://github.com/microservices-demo/shipping)
-8. [queue-master](https://github.com/microservices-demo/queue-master)
+* The [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator)
+* Highly available [Prometheus](https://prometheus.io/)
+* Highly available [Alertmanager](https://github.com/prometheus/alertmanager)
+* [Prometheus node-exporter](https://github.com/prometheus/node_exporter)
+* [Prometheus blackbox-exporter](https://github.com/prometheus/blackbox_exporter)
+* [Prometheus Adapter for Kubernetes Metrics APIs](https://github.com/kubernetes-sigs/prometheus-adapter)
+* [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics)
+* [Grafana](https://grafana.com/)
 
-The `catalogue` and `user` have a built-in wait to READY as the dependent databases are started up.
+This stack is meant for cluster monitoring, so it is pre-configured to collect metrics from all Kubernetes components. In addition to that it delivers a default set of dashboards and alerting rules. Many of the useful dashboards and alerts come from the [kubernetes-mixin project](https://github.com/kubernetes-monitoring/kubernetes-mixin), similar to this project it provides composable jsonnet as a library for users to customize to their needs.
 
-Unless mentioned, each image is cross-compiled in s390x, amd64, arm64, and ppc64le. The image is manifest-listed.
+## Prerequisites
 
-### Deployment
+You will need a Kubernetes cluster, that's it! By default it is assumed, that the kubelet uses token authentication and authorization, as otherwise Prometheus needs a client certificate, which gives it full access to the kubelet, rather than just the metrics. Token authentication and authorization allows more fine grained and easier access control.
 
-There are three diferent kustomizations: fyre, multi, multi-hpa. multi-hpa is a HoriztonalPodAutoScaler version where the front-end autoscales.
+This means the kubelet configuration must contain these flags:
 
-*fyre* 
+* `--authentication-token-webhook=true` This flag enables, that a `ServiceAccount` token can be used to authenticate against the kubelet(s). This can also be enabled by setting the kubelet configuration value `authentication.webhook.enabled` to `true`.
+* `--authorization-mode=Webhook` This flag enables, that the kubelet will perform an RBAC request with the API to determine, whether the requesting entity (Prometheus in this case) is allowed to access a resource, in specific for this project the `/metrics` endpoint. This can also be enabled by setting the kubelet configuration value `authorization.mode` to `Webhook`.
 
-To deploy to fyre, use the following:
+This stack provides [resource metrics](https://github.com/kubernetes/metrics#resource-metrics-api) by deploying
+the [Prometheus Adapter](https://github.com/kubernetes-sigs/prometheus-adapter).
+This adapter is an Extension API Server and Kubernetes needs to be have this feature enabled, otherwise the adapter has
+no effect, but is still deployed.
 
-1. Update manifests/overlays/fyre/env.secret with username and password:
+## Compatibility
 
-```
-username=
-password=
-```
+The following Kubernetes versions are supported and work as we test against these versions in their respective branches. But note that other versions might work!
 
-2. Build sock shop for fyre:
+> [!NOTE]
+> In CI we will be testing only last two releases and main branch on a regular basis.
 
-```
-❯ kustomize build manifests/overlays/fyre | oc apply -f - 
-```
+| kube-prometheus stack                                                                      | Kubernetes 1.29 | Kubernetes 1.30 | Kubernetes 1.31 | Kubernetes 1.32 | Kubernetes 1.33 | Kubernetes 1.34 |
+|--------------------------------------------------------------------------------------------|-----------------|-----------------|-----------------|-----------------|-----------------|-----------------|
+| [`release-0.14`](https://github.com/prometheus-operator/kube-prometheus/tree/release-0.14) | ✔               | ✔               | ✔               | x               | x               | x               |
+| [`release-0.15`](https://github.com/prometheus-operator/kube-prometheus/tree/release-0.15) | x               | x               | ✔               | ✔               | ✔               | x               |
+| [`release-0.16`](https://github.com/prometheus-operator/kube-prometheus/tree/release-0.16) | x               | x               | ✔               | ✔               | ✔               | ✔               |
+| [`main`](https://github.com/prometheus-operator/kube-prometheus/tree/main)                 | x               | x               | x               | ✔               | ✔               | ✔               |
 
-3. Destroy sock shop for fyre:
+## Quickstart
 
-```
-❯ kustomize build manifests/overlays/fyre | oc delete -f - 
-```
+This project is intended to be used as a library (i.e. the intent is not for you to create your own modified copy of this repository).
 
-*multiarch compute*
+Though for a quickstart a compiled version of the Kubernetes [manifests](manifests) generated with this library (specifically with `example.jsonnet`) is checked into this repository in order to try the content out quickly. To try out the stack un-customized run:
 
-To deploy to a multiarch compute cluster, use the following:
+* Create the monitoring stack using the config in the `manifests` directory:
 
-1. Update manifests/base/env.secret with username and password:
+  ```shell
+  # Create the namespace and CRDs, and then wait for them to be available before creating the remaining resources
+  # Note that due to some CRD size we are using kubectl server-side apply feature which is generally available since kubernetes 1.22.
+  # If you are using previous kubernetes versions this feature may not be available and you would need to use kubectl create instead.
+  kubectl apply --server-side -f manifests/setup
+  kubectl wait \
+      --for condition=Established \
+      --all CustomResourceDefinition \
+      --namespace=monitoring
+  kubectl apply -f manifests/
+  ```
 
-```
-username=
-password=
-```
+We create the namespace and CustomResourceDefinitions first to avoid race conditions when deploying the monitoring components.
+Alternatively, the resources in both folders can be applied with a single command
+`kubectl apply --server-side -f manifests/setup -f manifests`, but it may be necessary to run the command multiple times for all components to
+be created successfully.
 
-2. Build sock shop for multi:
+* To teardown the stack:
 
-```
-❯ kustomize build manifests/overlays/multi | oc apply -f - 
-```
+  ```shell
+  kubectl delete --ignore-not-found=true -f manifests/ -f manifests/setup
+  ```
 
-3. Destroy sock shop for multi:
+The [official documentation](http://prometheus-operator.dev/docs/getting-started/installation/) contains the full version of this quick-start guide, and includes [instructions](https://prometheus-operator.dev/kube-prometheus/kube/access-ui/) on how to access Prometheus, AlertManager, and Grafana.
 
-```
-❯ kustomize build manifests/overlays/multi | oc delete -f - 
-```
+### minikube
 
-### Using the application
+To try out this stack, start [minikube](https://github.com/kubernetes/minikube) with the following command:
 
-1. Get the route to the host
-
-```
-❯ oc get routes -n sock-shop
-NAME        HOST/PORT                                                 PATH   SERVICES    PORT   TERMINATION   WILDCARD
-sock-shop   sock-shop.apps.demo.xyz          front-end   8079   edge/None     None
-```
-
-2. Navigate to https://sock-shop.apps.demo.xyz
-
-3. Pick a test user from [User Accounts](https://microservices-demo.github.io/docs/user-accounts.html)
-
-Have fun and use it.
-
-### Images
-
-The applications are compiled into images that are hosted at [quay.io/repository/powercloud](https://quay.io/repository/powercloud). There is a manifest-listed image for each application in the corresponding sock-shop repository.
-
-To build the images, use: 
-
-*amd64*
-
-```
-ARCH=amd64
-REGISTRY=quay.io/repository/powercloud/sock-shop-${APP}
-make cross-build-amd64
+```shell
+minikube delete && minikube start --container-runtime=containerd --kubernetes-version=v1.33.1 --memory=6g --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.bind-address=0.0.0.0 --extra-config=controller-manager.bind-address=0.0.0.0
 ```
 
-*All other arches*
+The kube-prometheus stack includes a resource metrics API server, so the metrics-server addon is not necessary. Ensure the metrics-server addon is disabled on minikube:
 
-```
-ARCH=ppc64le
-REGISTRY=quay.io/repository/powercloud/sock-shop-${APP}
-make cross-build-amd64
+```shell
+minikube addons disable metrics-server
 ```
 
-To push the manifest-listed images, use:
+## Getting started
 
-```
-REGISTRY=quay.io/repository/powercloud/sock-shop-${APP}
-ARM_REGISTRY=quay.io/repostiroy/powercloud/sock-shop-${APP}
-APP=front-end
-make push-ml
-```
-### Diagrams
+Before deploying kube-prometheus in a production environment, read:
 
-The architecture is:
+1. [Customizing kube-prometheus](docs/customizing.md)
+2. [Customization examples](docs/customizations)
+3. [Accessing Graphical User Interfaces](docs/access-ui.md)
+4. [Troubleshooting kube-prometheus](docs/troubleshooting.md)
 
-![image.png](https://raw.githubusercontent.com/microservices-demo/microservices-demo.github.io/master/assets/Architecture.png)
+## Documentation
 
+1. [Continuous Delivery](examples/continuous-delivery)
+2. [Update to new version](docs/update.md)
+3. For more documentation on the project refer to `docs/` directory.
 
-The application looks like: 
+## Contributing
 
-![socks-orders.png](socks-orders.png)
+To contribute to kube-prometheus, refer to [Contributing](CONTRIBUTING.md).
 
-The microservices interaction diagram is:
-![image](https://github.com/ocp-power-demos/sock-shop-demo/assets/3016328/ec62c687-5609-4264-bc10-82b2b2003185)
+## Join the discussion
 
+If you have any questions or feedback regarding kube-prometheus, join the [kube-prometheus discussion](https://github.com/prometheus-operator/kube-prometheus/discussions). Alternatively, consider joining [#prometheus-operator](https://kubernetes.slack.com/archives/CFFDS2Z7F) slack channel or project's bi-weekly [Contributor Office Hours](https://docs.google.com/document/d/1-fjJmzrwRpKmSPHtXN5u6VZnn39M28KqyQGBEJsqUOk/edit#).
 
-### Development
+## License
 
-The following custom repos are used: 
-
-- front-end - https://github.com/ocp-power-demos/sock-shop-front-end
-- user - https://github.com/ocp-power-demos/sock-shop-user
-- orders - https://github.com/ocp-power-demos/sock-shop-orders
-
-
-### Using
-
-Please login in via the https route to sock-shop and register a new user.
-
-### Testing the Multiarchitecture Compute
-1. [e2e-test](https://github.com/microservices-demo/e2e-tests)
-2. [load-test](https://github.com/microservices-demo/load-test)
-
-Thank you to the WeaveWorks team and supporters.
-
-### References
-1. https://microservices-demo.github.io/
-2. https://medium.com/ibm-cloud/tracing-and-profiling-microservices-application-deployed-on-ibm-cloud-private-fe1f4c274329
+Apache License 2.0, see [LICENSE](https://github.com/prometheus-operator/kube-prometheus/blob/main/LICENSE).

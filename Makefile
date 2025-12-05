@@ -1,131 +1,108 @@
-#Arches can be: amd64 s390x arm64 ppc64le
-ARCH ?= ppc64le
+SHELL=/bin/bash -o pipefail
 
-# The app to build
-APP ?= phony
+BIN_DIR?=$(shell pwd)/tmp/bin
 
-# If absent, registry defaults
-REGISTRY ?= quay.io/powercloud 
-ARM_REGISTRY ?= ${REGISTRY}
+MDOX_BIN=$(BIN_DIR)/mdox
+JB_BIN=$(BIN_DIR)/jb
+GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
+JSONNET_BIN=$(BIN_DIR)/jsonnet
+JSONNETLINT_BIN=$(BIN_DIR)/jsonnet-lint
+JSONNETFMT_BIN=$(BIN_DIR)/jsonnetfmt
+KUBECONFORM_BIN=$(BIN_DIR)/kubeconform
+KUBESCAPE_BIN=~/.kubescape/bin/kubescape
+TOOLING=$(JB_BIN) $(GOJSONTOYAML_BIN) $(JSONNET_BIN) $(JSONNETLINT_BIN) $(JSONNETFMT_BIN) $(KUBECONFORM_BIN) $(MDOX_BIN)
 
-verify-environment:
-	+@echo "REGISTRY: ${REGISTRY}"
-	+@echo "ARCH: ${ARCH}"
-	+@echo "ARM_REGISTRY: ${ARM_REGISTRY}"
-.PHONY: verify-environment
+JSONNETFMT_ARGS=-n 2 --max-blank-lines 2 --string-style s --comment-style s
 
-cross-build-user: verify-environment
-	+@echo "Building Image - 'user'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-user:${ARCH} -f automation/Dockerfile-user
-	+@echo "Done Image - 'user'"
-.PHONY: cross-build-user
+MDOX_VALIDATE_CONFIG?=.mdox.validate.yaml
+MD_FILES_TO_FORMAT=$(shell find docs developer-workspace examples experimental jsonnet manifests -name "*.md") $(shell ls *.md)
 
-cross-build-user-db: verify-environment
-	+@echo "Building Image - 'user-db'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-user-db:${ARCH} -f automation/Dockerfile-user-db
-	+@echo "Done Image - 'user-db'"
-.PHONY: cross-build-user-db
+KUBESCAPE_THRESHOLD=1
 
-cross-build-front-end: verify-environment
-	+@echo "Building Image - 'front-end'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-front-end:${ARCH} -f automation/Dockerfile-front-end
-	+@echo "Done Image - 'front-end'"
-.PHONY: cross-build-front-end
+all: generate fmt test docs
 
-cross-build-payment: verify-environment
-	+@echo "Building Image - 'payment'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-payment:${ARCH} -f automation/Dockerfile-payment
-	+@echo "Done Image - 'payment'"
-.PHONY: cross-build-payment
+.PHONY: clean
+clean:
+	# Remove all files and directories ignored by git.
+	git clean -Xfd .
 
-cross-build-orders: verify-environment
-	+@echo "Building Image - 'orders'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-orders:${ARCH} -f automation/Dockerfile-orders
-	+@echo "Done Image - 'orders'"
-.PHONY: cross-build-orders
+.PHONY: docs
+docs: $(MDOX_BIN) $(shell find examples) build.sh example.jsonnet
+	@echo ">> formatting and local/remote links"
+	$(MDOX_BIN) fmt --soft-wraps -l --links.localize.address-regex="https://prometheus-operator.dev/.*" --links.validate.config-file=$(MDOX_VALIDATE_CONFIG) $(MD_FILES_TO_FORMAT)
 
-cross-build-catalogue: verify-environment
-	+@echo "Building Image - 'catalogue'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-catalogue:${ARCH} -f automation/Dockerfile-catalogue
-	+@echo "Done Image - 'catalogue'"
-.PHONY: cross-build-catalogue
+.PHONY: check-docs
+check-docs: $(MDOX_BIN) $(shell find examples) build.sh example.jsonnet
+	@echo ">> checking formatting and local/remote links"
+	$(MDOX_BIN) fmt --soft-wraps --check -l --links.localize.address-regex="https://prometheus-operator.dev/.*" --links.validate.config-file=$(MDOX_VALIDATE_CONFIG) $(MD_FILES_TO_FORMAT)
 
-cross-build-catalogue-db: verify-environment
-	+@echo "Building Image - 'catalogue-db'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-catalogue-db:${ARCH} -f automation/Dockerfile-catalogue-db
-	+@echo "Done Image - 'catalogue-db'"
-.PHONY: cross-build-catalogue-db
+.PHONY: generate
+generate: manifests
 
-cross-build-carts: verify-environment
-	+@echo "Building Image - 'carts'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-carts:${ARCH} -f automation/Dockerfile-carts
-	+@echo "Done Image - 'carts'"
-.PHONY: cross-build-carts
+manifests: examples/kustomize.jsonnet $(GOJSONTOYAML_BIN) vendor
+	./build.sh $<
 
-cross-build-shipping: verify-environment
-	+@echo "Building Image - 'shipping'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-shipping:${ARCH} -f automation/Dockerfile-shipping
-	+@echo "Done Image - 'shipping'"
-.PHONY: cross-build-shipping
+vendor: $(JB_BIN) jsonnetfile.json jsonnetfile.lock.json
+	rm -rf vendor
+	$(JB_BIN) install
 
-cross-build-queue-master: verify-environment
-	+@echo "Building Image - 'queue-master'"
-	+@podman build --platform linux/${ARCH} -t ${REGISTRY}/sock-shop-queue-master:${ARCH} -f automation/Dockerfile-queue-master
-	+@echo "Done Image - 'queue-master'"
-.PHONY: cross-build-queue-master
+crdschemas: vendor
+	./scripts/generate-schemas.sh
 
-cross-build-amd64: cross-build-user cross-build-front-end cross-build-payment cross-build-orders cross-build-catalogue cross-build-catalogue-db cross-build-carts cross-build-shipping cross-build-queue-master
-.PHONY: cross-build-amd64 
+.PHONY: update
+update: $(JB_BIN)
+	$(JB_BIN) update
 
-# cross-build-catalogue-db is not supported on non-amd64 arches
-cross-build-other: cross-build-user cross-build-front-end cross-build-payment cross-build-orders cross-build-catalogue cross-build-carts cross-build-shipping cross-build-queue-master
-.PHONY: cross-build-other
+.PHONY: validate
+validate: validate-1.31 validate-1.32 validate-1.33
 
-# pushes the individual images
-push-all-ind: verify-environment
-	+@podman push ${REGISTRY}/sock-shop-carts:${ARCH}
-	+@podman push ${REGISTRY}/sock-shop-catalogue:${ARCH}
-	+@podman push ${REGISTRY}/sock-shop-front-end:${ARCH}
-	+@podman push ${REGISTRY}/sock-shop-orders:${ARCH}
-	+@podman push ${REGISTRY}/sock-shop-payment:${ARCH}
-	+@podman push ${REGISTRY}/sock-shop-queue-master:${ARCH}
-	+@podman push ${REGISTRY}/sock-shop-user:${ARCH}
-	+@podman push ${REGISTRY}/sock-shop-shipping:${ARCH}
-.PHONY: push-all-ind
+validate-1.31:
+	KUBE_VERSION=1.31.9 $(MAKE) kubeconform
 
-push-catalogue-db: verify-environment
-	+@echo "push Image - 'catalogue-db'"
-	+@podman push ${REGISTRY}/sock-shop-catalogue-db:${ARCH}
-	+@echo "Done push Image - 'catalogue-db'"
-.PHONY: push-catalogue-db
+validate-1.32:
+	KUBE_VERSION=1.32.5 $(MAKE) kubeconform
 
-push-user-db: verify-environment
-	+@echo "push Image - 'user-db'"
-	+@podman push ${REGISTRY}/sock-shop-user-db:${ARCH}
-	+@echo "Done Image - 'user-db'"
-.PHONY: push-user-db
+validate-1.33:
+	KUBE_VERSION=1.33.1 $(MAKE) kubeconform
 
-# These images are build separately and only target amd64
-push-db: verify-environment push-catalogue-db push-user-db
-.PHONY: push-db
+.PHONY: kubeconform
+kubeconform: crdschemas manifests $(KUBECONFORM_BIN)
+	$(KUBECONFORM_BIN) -kubernetes-version $(KUBE_VERSION) -schema-location 'default' -schema-location 'crdschemas/{{ .ResourceKind }}.json' -skip CustomResourceDefinition manifests/
 
-pull-deps:
-	+@podman pull --platform linux/amd64 ${REGISTRY}/sock-shop-${APP}:amd64
-	+@podman pull --platform linux/s390x ${REGISTRY}/sock-shop-${APP}:s390x
-	+@podman pull --platform linux/arm64 ${ARM_REGISTRY}/sock-shop-${APP}:arm64
-	+@podman pull --platform linux/ppc64le ${REGISTRY}/sock-shop-${APP}:ppc64le
-.PHONY: pull-deps
+.PHONY: kubescape
+kubescape: $(KUBESCAPE_BIN) ## Runs a security analysis on generated manifests - failing if risk score is above threshold percentage 't'
+	$(KUBESCAPE_BIN) scan framework nsa --compliance-threshold $(KUBESCAPE_THRESHOLD) -v --exceptions 'kubescape-exceptions.json' manifests/
 
-# Applies to all (except catalogue-db) - generate-and-push-manifest-list.
-push-ml: verify-environment pull-deps
-	+@echo "Remove existing manifest listed - ${APP}"
-	+@podman manifest rm ${REGISTRY}/sock-shop-${APP} || true
-	+@echo "Create new ML - ${APP}"
-	+@podman manifest create ${REGISTRY}/sock-shop-${APP} \
-		${REGISTRY}/sock-shop-${APP}:amd64 \
-		${REGISTRY}/sock-shop-${APP}:s390x \
-		${ARM_REGISTRY}/sock-shop-${APP}:arm64 \
-		${REGISTRY}/sock-shop-${APP}:ppc64le
-	+@echo "Pushing image - ${APP}"
-	+@podman manifest push ${REGISTRY}/sock-shop-${APP} ${REGISTRY}/sock-shop-${APP}
-.PHONY: push-ml
+$(KUBESCAPE_BIN):
+	curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash
+
+.PHONY: fmt
+fmt: $(JSONNETFMT_BIN)
+	find . -name 'vendor' -prune -o -name '*.libsonnet' -print -o -name '*.jsonnet' -print | \
+		xargs -n 1 -- $(JSONNETFMT_BIN) $(JSONNETFMT_ARGS) -i
+
+.PHONY: lint
+lint: $(JSONNETLINT_BIN) vendor
+	find jsonnet/ -name 'vendor' -prune -o -name '*.libsonnet' -print -o -name '*.jsonnet' -print | \
+		xargs -n 1 -- $(JSONNETLINT_BIN) -J vendor
+
+.PHONY: test
+test: $(JB_BIN)
+	$(JB_BIN) install
+	./scripts/test.sh
+
+.PHONY: test-e2e
+test-e2e:
+	go test -timeout 55m -v ./tests/e2e -count=1
+
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
+
+$(TOOLING): $(BIN_DIR)
+	@echo Installing tools from scripts/tools.go
+	@cd scripts && cat tools.go | grep _ | awk -F'"' '{print $$2}' | xargs -tI % go build -modfile=go.mod -o $(BIN_DIR) %
+
+.PHONY: deploy
+deploy:
+	./developer-workspace/codespaces/prepare-kind.sh
+	./developer-workspace/common/deploy-kube-prometheus.sh

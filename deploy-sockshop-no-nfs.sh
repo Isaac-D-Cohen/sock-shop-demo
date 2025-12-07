@@ -40,7 +40,7 @@ done
 kubectl annotate storageclass local-path storageclass.kubernetes.io/is-default-class=true --overwrite
 
 echo ">>> Deploying Sock-Shop..."
-kubectl apply -k manifests/overlays/double
+kubectl apply -k manifests/overlays/single
 
 echo ">>> Waiting for pods to become Ready..."
 kubectl wait --for=condition=Ready pods --all --timeout=300s || true
